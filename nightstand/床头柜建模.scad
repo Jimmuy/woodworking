@@ -33,6 +33,8 @@ shelf_support_d    = 18;
 shelf_support_thk  = 3;
 shelf_support_lug_h= 8;
 glass_thk          = 4;    // 长虹玻璃/亚克力
+glass_slot_embed   = 5;    // 每边进入2020槽/U型胶条的有效深度
+glass_install_clearance = 1; // 每边安装余量，避免板件过紧无法滑入
 foot_height        = 30;
 
 // --- 抽屉与滑轨 ---
@@ -49,7 +51,7 @@ slide_h            = 35;
 slide_thk          = 12;
 slide_carrier_thk  = 3;    // 隐藏式金属承载条，固定在2020槽内，滑轨不打在亚克力上
 slide_carrier_h    = 30;
-slide_carrier_len  = 360;  // 前后2020立柱内侧之间的净距，承载条先装，滑轨锁在前段
+slide_carrier_len  = 380;  // 两端搭到前后立柱槽位；380mm需做开口长槽，若做封闭孔建议改400mm
 slide_mount_gap    = 0.5;
 drawer_side_working_clearance = 2; // 每侧装配/调节余量；保证抽屉能从正面合轨推入
 slide_bottom_clearance = 2; // 参考图为低位侧装，贴近抽屉盒底边
@@ -111,8 +113,8 @@ upper_open_top_z    = top_beam_z - profile_size/2;
 upper_open_bottom_z = middle_beam_z + profile_size/2;
 upper_open_h        = upper_open_top_z - upper_open_bottom_z;
 
-glass_panel_len   = beam_x_cut_len - 4;
-glass_panel_h     = upper_open_h - 8;
+glass_panel_len   = beam_x_cut_len + 2*(glass_slot_embed - glass_install_clearance);
+glass_panel_h     = upper_open_h + 2*(glass_slot_embed - glass_install_clearance);
 glass_z           = (upper_open_top_z + upper_open_bottom_z) / 2;
 glass_side_x      = post_x - profile_size/2 - glass_thk/2 - 0.5;
 glass_back_y      = post_y - profile_size/2 - glass_thk/2 - 0.5;
@@ -132,6 +134,7 @@ drawer_rear_inner_limit_y = post_y - profile_size/2;
 drawer_front_flush_inset= 0; // 0=抽屉前脸外表面与前侧铝型材外表面平齐
 drawer_front_y_closed   = front_profile_outer_y + drawer_front_flush_inset + drawer_front_thk/2;
 drawer_box_y_closed     = drawer_front_y_closed + drawer_front_thk/2 + drawer_box_depth/2;
+drawer_inner_front_y     = drawer_box_y_closed - drawer_box_depth/2 + drawer_body_thk/2;
 drawer_open_y           = -slide_travel * drawer_open_ratio;
 drawer_full_open_y      = -slide_travel;
 slide_carrier_x         = post_x - profile_size/2 - slide_carrier_thk/2;
@@ -145,6 +148,9 @@ drawer_front_outer_y_closed = drawer_front_y_closed - drawer_front_thk/2;
 drawer_back_y_closed    = drawer_box_y_closed + drawer_box_depth/2;
 drawer_back_clearance_closed = drawer_rear_inner_limit_y - drawer_back_y_closed;
 drawer_bottom_clearance = drawer_box_bottom_z - upper_open_bottom_z;
+drawer_inner_panel_w    = drawer_box_w - 2*drawer_body_thk;
+drawer_bottom_w         = drawer_inner_panel_w;
+drawer_bottom_depth     = drawer_box_depth - 2*drawer_body_thk;
 
 echo(str("CUT 2020 vertical posts: ", pillar_cut_len, "mm x 4"));
 echo(str("CUT 2020 horizontal beams X/Y: ", beam_x_cut_len, "mm x 12"));
@@ -153,9 +159,10 @@ echo(str("CUT bottom shelf: ", shelf_size, " x ", shelf_size, " x ", shelf_thk, 
 echo(str("CUT side/back glass or acrylic: ", glass_panel_len, " x ", glass_panel_h, " x ", glass_thk, "mm x 3"));
 echo(str("CUT drawer front: ", drawer_front_w, " x ", drawer_front_h, " x ", drawer_front_thk, "mm x 1"));
 echo(str("CUT drawer sides: ", drawer_box_depth, " x ", drawer_box_h, " x ", drawer_body_thk, "mm x 2"));
-echo(str("CUT drawer back: ", drawer_box_w - 2*drawer_body_thk, " x ", drawer_box_h, " x ", drawer_body_thk, "mm x 1"));
-echo(str("CUT drawer bottom: ", drawer_box_w - 2*drawer_body_thk, " x ", drawer_box_depth - drawer_body_thk, " x ", drawer_bottom_thk, "mm x 1"));
-echo(str("CUT slide carrier bars: ", slide_carrier_len, " x ", slide_carrier_h, " x ", slide_carrier_thk, "mm x 2"));
+echo(str("CUT drawer inner front: ", drawer_inner_panel_w, " x ", drawer_box_h, " x ", drawer_body_thk, "mm x 1, slotted holes for adjustable decorative front"));
+echo(str("CUT drawer back: ", drawer_inner_panel_w, " x ", drawer_box_h, " x ", drawer_body_thk, "mm x 1"));
+echo(str("CUT drawer bottom: ", drawer_bottom_w, " x ", drawer_bottom_depth, " x ", drawer_bottom_thk, "mm x 1"));
+echo(str("CUT slide carrier bars: ", slide_carrier_len, " x ", slide_carrier_h, " x ", slide_carrier_thk, "mm x 2, end open slots must reach front/back post T-slot centerlines"));
 echo(str("CHECK drawer closed: front face Y=", drawer_front_outer_y_closed, "mm, front profile outer Y=", front_profile_outer_y, "mm"));
 echo(str("CHECK drawer rear clearance closed: ", drawer_back_clearance_closed, "mm"));
 echo(str("CHECK drawer bottom clearance above opening lower profile: ", drawer_bottom_clearance, "mm"));
@@ -508,8 +515,16 @@ module slide_carrier_bar(sign=1) {
     color(color_metal)
     cube([slide_carrier_thk, slide_carrier_len, slide_carrier_h], center=true);
 
+    // 端部开口长槽用于锁入前后立柱槽内滑块；长槽覆盖到 y=+/-190mm 的槽中心线。
     color(color_socket)
-    for (yoff = [-160, -80, 80, 160]) {
+    for (yoff = [-slide_carrier_len/2 + 5, slide_carrier_len/2 - 5]) {
+        translate([-sign * (slide_carrier_thk/2 + 0.03), yoff, 0])
+            cube([0.08, 12, 5.5], center=true);
+    }
+
+    // 中段孔位用于固定滑轨外轨，螺丝从抽屉口方向操作。
+    color(color_socket)
+    for (yoff = [-120, -45, 45, 120]) {
         translate([-sign * (slide_carrier_thk/2 + 0.03), yoff, 0])
         rotate([0, 90, 0])
             cylinder(h=0.08, d=4.5, center=true);
@@ -553,15 +568,17 @@ module drawer_box_parts() {
             cube([drawer_body_thk, drawer_box_depth, drawer_box_h], center=true);
         translate([ drawer_box_w/2 - drawer_body_thk/2, drawer_box_y_closed, drawer_z])
             cube([drawer_body_thk, drawer_box_depth, drawer_box_h], center=true);
+        translate([0, drawer_inner_front_y, drawer_z])
+            cube([drawer_inner_panel_w, drawer_body_thk, drawer_box_h], center=true);
         translate([0, drawer_box_y_closed + drawer_box_depth/2 - drawer_body_thk/2, drawer_z])
-            cube([drawer_box_w - 2*drawer_body_thk, drawer_body_thk, drawer_box_h], center=true);
+            cube([drawer_inner_panel_w, drawer_body_thk, drawer_box_h], center=true);
         translate([0, drawer_box_y_closed, drawer_z - drawer_box_h/2 + drawer_bottom_thk/2])
-            cube([drawer_box_w - 2*drawer_body_thk, drawer_box_depth - drawer_body_thk, drawer_bottom_thk], center=true);
+            cube([drawer_bottom_w, drawer_bottom_depth, drawer_bottom_thk], center=true);
     }
 }
 
 module drawer_front_fixing_hardware() {
-    inner_y = drawer_front_y_closed + drawer_front_thk/2 + 0.12;
+    inner_y = drawer_inner_front_y + drawer_body_thk/2 + 0.12;
 
     for (x = [-drawer_front_fix_x, drawer_front_fix_x]) {
         for (z = [drawer_z - drawer_front_fix_z, drawer_z + drawer_front_fix_z]) {
@@ -581,23 +598,26 @@ module drawer_front_fixing_hardware() {
 module drawer_box_fasteners() {
     screw_z_top = drawer_z + drawer_box_h/2 - 18;
     screw_z_bottom = drawer_z - drawer_box_h/2 + 18;
+    front_y = drawer_inner_front_y;
     back_y = drawer_box_y_closed + drawer_box_depth/2 - drawer_body_thk/2;
     bottom_z = drawer_z - drawer_box_h/2 + drawer_bottom_thk + 0.08;
 
-    // 背板与左右侧板连接螺丝。
+    // 内前板/背板与左右侧板连接螺丝。
     color(color_socket)
-    for (x = [-drawer_box_w/2 - 0.05, drawer_box_w/2 + 0.05]) {
-        for (z = [screw_z_bottom, screw_z_top]) {
-            translate([x, back_y, z])
-            rotate([0, 90, 0])
-                cylinder(h=0.08, d=4.2, center=true);
+    for (panel_y = [front_y, back_y]) {
+        for (x = [-drawer_box_w/2 - 0.05, drawer_box_w/2 + 0.05]) {
+            for (z = [screw_z_bottom, screw_z_top]) {
+                translate([x, panel_y, z])
+                rotate([0, 90, 0])
+                    cylinder(h=0.08, d=4.2, center=true);
+            }
         }
     }
 
     // 底板固定螺丝，表示底板不是自由放置。
     color(color_socket)
     for (x = [-drawer_box_w/2 + 48, 0, drawer_box_w/2 - 48]) {
-        for (y = [drawer_box_y_closed - drawer_box_depth/2 + 44, back_y - 24]) {
+        for (y = [front_y + drawer_body_thk/2 + 32, back_y - drawer_body_thk/2 - 32]) {
             translate([x, y, bottom_z])
                 cylinder(h=0.08, d=4.0, center=true);
         }
